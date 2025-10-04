@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReviewPulse - 商品评论情感分析可视化</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>ReviewPulse - 商品评论情感分析可视化</h1>
+        
+        <div class="controls">
+            <label for="product-select">选择商品:</label>
+            <select id="product-select">
+                <option value="">加载中...</option>
+            </select>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title">情感分布</div>
+            <div id="sentiment-chart" class="chart"></div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title">情感时间线</div>
+            <div id="timeline-chart" class="chart"></div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title">高频关键词</div>
+            <div id="wordcloud" class="chart"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+# sentiment_api_fixed.py
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+import json
+import pandas as pd
+from textblob import TextBlob
+from collections import Counter
+import re
+from datetime import datetime
+import nltk
+
+# 自动下载必要的NLTK数据
+def download_nltk_data():
+    try:
+        nltk.download('stopwords', quiet=True)
+        nltk.download('punkt', quiet=True)
+        nltk.download('vader_lexicon', quiet=True)
+        print("NLTK数据下载完成")
+    except Exception as e:
+        print(f"NLTK数据下载失败: {e}")
+        # 如果下载失败，使用简单的停用词列表
+        return False
+    return True
+
+# 下载数据
+download_nltk_data()
+
+# 现在导入依赖
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+
+app = Flask(__name__)
+CORS(app)
+
+class SentimentAnalyzer:
+    def __init__(self):
+        self.data = None
+        # 如果NLTK停用词不可用，使用自定义停用词列表
+        try:
+            self.stop_words = set(stopwords.words('english'))
+        except:
+            self.stop_words = self.get_basic_stopwords()
+            print("使用基础停用词列表")
+    
+    def get_basic_stopwords(self):
+        """基础英文停用词列表"""
+        basic_stopwords = {
+            'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', "you're", 
+            "you've", "you'll", "you'd", 'your', 'yours', 'yourself', 'yourselves', 
+            'he', 'him', 'his', 'himself', 'she', "she's", 'her', 'hers', 'herself', 
+            'it', "it's", 'its', 'itself', 'they', 'them', 'their', 'theirs', 
+            'themselves', 'what', 'which', 'who', 'whom', 'this', 'that', "that'll", 
+            'these', 'those', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 
+            'have', 'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'a', 'an', 
+            'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while', 'of', 
+            'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through', 
+            'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 
+            'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 
+            'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 
+            'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 
+            'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 
+            't', 'can', 'will', 'just', 'don', "don't", 'should', "should've", 'now', 
+            'd', 'll', 'm', 'o', 're', 've', 'y', 'ain', 'aren', "aren't", 'couldn', 
+            "couldn't", 'didn', "didn't", 'doesn', "doesn't", 'hadn', "hadn't", 
+            'hasn', "hasn't", 'haven', "haven't", 'isn', "isn't", 'ma', 'mightn', 
+            "mightn't", 'mustn', "mustn't", 'needn', "needn't", 'shan', "shan't", 
+            'shouldn', "shouldn't", 'wasn', "wasn't", 'weren', "weren't", 'won', 
+            "won't", 'wouldn', "wouldn't"
+        }
+        return basic_stopwords
+    
+    def load_data(self, file_path):
+        """加载处理后的数据"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                self.data = json.load(f)
+            print(f"成功加载数据，共 {len(self.data)} 条评论")
+            return True
+        except Exception as e:
+            print(f"加载数据失败: {e}")
+            return False
+    
+    def preprocess_text(self, text):
+        """文本预处理"""
+        text = str(text).lower()
+        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        
+        # 使用简单分词，避免NLTK分词问题
+        words = text.split()
+        
+        # 过滤停用词和短词
+        words = [word for word in words if word not in self.stop_words and len(word) > 2]
+        return words
+    
+    def analyze_sentiment(self, text):
+        """分析单条评论情感"""
+        try:
+            blob = TextBlob(text)
+            polarity = blob.sentiment.polarity
+            
+            if polarity > 0.1:
+                sentiment = "positive"
+            elif polarity < -0.1:
+                sentiment = "negative"
+            else:
+                sentiment = "neutral"
+            
+            return {
+                'polarity': polarity,
+                'sentiment': sentiment
+            }
+        except:
+            # 如果分析失败，返回中性
+            return {
+                'polarity': 0,
+                'sentiment': "neutral"
+            }
+    
+    def get_product_sentiment_stats(self):
+        """获取所有商品的情感统计"""
+        products = {}
+        
+        for review in self.data:
+            asin = review['asin']
+            if asin not in products:
+                products[asin] = {
+                    'positive': 0,
+                    'negative': 0, 
+                    'neutral': 0,
+                    'total_reviews': 0,
+                    'avg_polarity': 0,
+                    'reviews': []
+                }
+            
+            sentiment_result = self.analyze_sentiment(review['reviewText'])
+            products[asin][sentiment_result['sentiment']] += 1
+            products[asin]['total_reviews'] += 1
+            products[asin]['avg_polarity'] += sentiment_result['polarity']
+            products[asin]['reviews'].append({
+                'text': review['reviewText'],
+                'time': review['reviewTime'],
+                'sentiment': sentiment_result['sentiment'],
+                'polarity': sentiment_result['polarity']
+            })
+        
+        # 计算平均情感极性
+        for asin in products:
+            if products[asin]['total_reviews'] > 0:
+                products[asin]['avg_polarity'] /= products[asin]['total_reviews']
+        
+        return products
+    
+    def get_sentiment_timeline(self, asin):
+        """获取某个商品的情感时间线"""
+        product_reviews = [r for r in self.data if r['asin'] == asin]
+        
+        # 按时间排序
+        product_reviews.sort(key=lambda x: x.get('reviewTime', ''))
+        
+        timeline = []
+        for review in product_reviews:
+            sentiment_result = self.analyze_sentiment(review['reviewText'])
+            timeline.append({
+                'date': review.get('reviewTime', ''),
+                'sentiment': sentiment_result['sentiment'],
+                'polarity': sentiment_result['polarity'],
+                'text': (review['reviewText'][:100] + '...') if len(review['reviewText']) > 100 else review['reviewText']
+            })
+        
+        return timeline
+    
+    def get_top_keywords(self, asin, top_n=20):
+        """获取某个商品的高频关键词"""
+        product_reviews = [r['reviewText'] for r in self.data if r['asin'] == asin]
+        
+        all_words = []
+        for review in product_reviews:
+            words = self.preprocess_text(review)
+            all_words.extend(words)
+        
+        word_freq = Counter(all_words)
+        return [{'text': word, 'size': count} for word, count in word_freq.most_common(top_n)]
+
+# 初始化分析器
+analyzer = SentimentAnalyzer()
+data_loaded = analyzer.load_data(r"C:\Users\13539\Desktop\ReviewPulse\Magazine_Subscriptions_5_processed.json")
+
+if not data_loaded:
+    print("数据加载失败，请检查文件路径")
+    exit(1)
+
+@app.route('/api/products', methods=['GET'])
+def get_products():
+    """获取所有商品列表"""
+    try:
+        products_data = analyzer.get_product_sentiment_stats()
+        
+        products_list = []
+        for asin, data in products_data.items():
+            products_list.append({
+                'asin': asin,
+                'total_reviews': data['total_reviews'],
+                'positive_count': data['positive'],
+                'negative_count': data['negative'],
+                'neutral_count': data['neutral'],
+                'avg_polarity': data['avg_polarity']
+            })
+        
+        return jsonify(products_list)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/product/<asin>/sentiment', methods=['GET'])
+def get_product_sentiment(asin):
+    """获取特定商品的情感分布"""
+    try:
+        products_data = analyzer.get_product_sentiment_stats()
+        
+        if asin not in products_data:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        data = products_data[asin]
+        sentiment_dist = [
+            {'sentiment': 'positive', 'count': data['positive']},
+            {'sentiment': 'negative', 'count': data['negative']},
+            {'sentiment': 'neutral', 'count': data['neutral']}
+        ]
+        
+        return jsonify({
+            'asin': asin,
+            'sentiment_distribution': sentiment_dist,
+            'total_reviews': data['total_reviews'],
+            'avg_polarity': data['avg_polarity']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/product/<asin>/timeline', methods=['GET'])
+def get_product_timeline(asin):
+    """获取特定商品的情感时间线"""
+    try:
+        timeline = analyzer.get_sentiment_timeline(asin)
+        return jsonify(timeline)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/product/<asin>/keywords', methods=['GET'])
+def get_product_keywords(asin):
+    """获取特定商品的关键词"""
+    try:
+        keywords = analyzer.get_top_keywords(asin)
+        return jsonify(keywords)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/product/<asin>/reviews', methods=['GET'])
+def get_product_reviews(asin):
+    """获取特定商品的所有评论"""
+    try:
+        products_data = analyzer.get_product_sentiment_stats()
+        
+        if asin not in products_data:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        return jsonify(products_data[asin]['reviews'])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """健康检查端点"""
+    return jsonify({'status': 'healthy', 'data_loaded': data_loaded})
+
+if __name__ == '__main__':
+    print("ReviewPulse 情感分析API服务启动...")
+    print("API端点:")
+    print("  GET /api/products - 获取所有商品列表")
+    print("  GET /api/product/<asin>/sentiment - 获取商品情感分布")
+    print("  GET /api/product/<asin>/timeline - 获取情感时间线")
+    print("  GET /api/product/<asin>/keywords - 获取关键词")
+    print("  GET /api/product/<asin>/reviews - 获取评论详情")
+    print("  GET /api/health - 健康检查")
+    
+    app.run(debug=True, port=5000)
