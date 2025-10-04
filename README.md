@@ -14,14 +14,22 @@
 ## 项目结构
 
 ReviewPulse/
+
 ├── app.js   # 前端javascrpt逻辑
+
 ├── index.html    #主页面  
+
 ├── style.css   # 样式文件
-├── dateclean   # 数据清洗工具
+
+├── dateclean.py   # 数据清洗工具
+
 ├── Magazine_Subscriptions_5.json   # 原snap亚马逊杂志购买数据集
+
 ├── Magazine_Subscriptions_5_processed.json    #处理后只保留有用数据的数据集  
+
 ├── requirements.txt   # Python依赖包列表
-└── sentiment_api   # 情感分析API
+
+└── sentiment_api.py   # 情感分析API
 
 
 ## 快速开始
