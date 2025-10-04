@@ -10,6 +10,18 @@
 -  **关键词词云** - 提取评论中的高频关键词
 -  **Web应用** - 响应式设计，支持移动端访问
 
+
+## 项目结构
+ReviewPulse/
+├── sentient_api/          # 情感分析API
+├── dataclean.py/         # 数据清洗工具
+├── style.css/            # 样式文件
+├── app.js/            # 前端javascrpt逻辑
+└── index/         # 主页面文件
+└── requirements.txt/         # Python依赖包列表
+└── Magazine_Subscriptions_5/         # 原snap亚马逊杂志购买数据集
+└── Magazine_Subscriptions_5_processed/         #处理后只保留有用数据的数据集 
+
 ## 快速开始
 
 ### 环境要求
